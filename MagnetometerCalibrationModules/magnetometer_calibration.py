@@ -9,12 +9,16 @@ from typing import Union, Tuple, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 
+#==========================================================
+#----------Functions for magnetometer calibration----------
+#==========================================================
+
 def fit_sphere_ls(
     raw_mag_data: np.ndarray
 ) -> Tuple[float, float]:
     """
-    Algebraic sphere fit: ||x - c||^2 = R^2 in order to get coarse bias c.
-    Solves linear LS for [c_x, c_y, c_z, d], with R^2 = c·c + d.
+    Algebraic sphere fit: ||x - c||^2 = R^2. It can be used to get coarse bias c.
+    Solves linear LS for [c_x, c_y, c_z, d], with R^2 = c·c + d.anac
 
     Args:
         raw_data: Raw magnetometer data array of shape (N, 3)
@@ -31,27 +35,6 @@ def fit_sphere_ls(
     R2 = np.dot(c, c) + d
     R  = np.sqrt(max(R2, 0.0))
     return c, R
-
-def compute_general_matrix(
-    a_params: np.ndarray,
-) -> np.ndarray:
-    """
-    Computes general A matrix according to Dorveaux et al. (2009).
-
-    Args:
-        a_params: Upper triangular general A matrix elements, array of shape (9,)
-
-    Returns:
-        Upper triangular general A of shape (3,3)
-     """
-    # Split parameters into components
-    #a11, a12, a13, a22, a23, a33 = a_params
-    a11, a12, a13, a21, a22, a23, a31, a32, a33 = a_params
-    
-    
-    # Return general matrix (A)
-    #return np.array([[a11, a12, a13],[0, a22, a23],[0, 0, a33]], dtype=np.float64)
-    return np.array([[a11, a12, a13],[a21, a22, a23],[a31, a32, a33]], dtype=np.float32)
     
 def apply_mag_calibration(
     params: np.ndarray, 
@@ -72,14 +55,13 @@ def apply_mag_calibration(
         - Implements the proposed calibration model from: 
           "Iterative calibration method for inertial and magnetic sensors"
         - The calibration model is: A @ raw + B
-          where A is a general upper triangular matrix and B is the zero bias vector
+          where A is a general matrix and B is the zero bias vector
     """
-    # Split parameters into components
-    #a_params, B = np.split(params, [6])
+    # Split parameters
     a_params, B = np.split(params, [9])
 
     # Construct general matrix (A)
-    A = compute_general_matrix(a_params)
+    A = a_params.reshape(3,3)
 
     # Apply calibration in vectorized form:
     # Equivalent to: (A @ raw_data.T + B).T
@@ -91,55 +73,38 @@ def design_matrix_and_target(
     """
     Build the linear LS system for Eq. (4) at iteration k as presented in Dorveaux et al. (2009):
         [A y_i,k + B] ≈ u_i,k  with  u_i = y_i,k / ||y_i,k||
-    Stacks 1,2,3 components for all i.
+    Stacks x,y,z components for all measurements i.
 
     Args:
-        iter_mag_data: (N,3) current dataset y_i,k
+        iter_mag_data: Current magnetometer data array of shape (N, 3) (y_k)
 
     Returns:
         M: (3N, 12) design matrix
         u: (3N,)   target vector
     """
     n_samples = iter_mag_data.shape[0]
-    #mx, my, mz = iter_mag_data[:,0], iter_mag_data[:,1], iter_mag_data[:,2] 
 
     # Unit targets u_i,k = y_i,k / ||y_i,k||
     norms = np.linalg.norm(iter_mag_data, axis=1, keepdims=True)
     u = iter_mag_data / norms
+    u = u.reshape(-1)
 
-    # Design matrix blocks 9 parameters
-    # Row for 1-component: [y1 y2 y3  0  0  0  1 0 0]
-    # Row for 2-component: [ 0  0  0 y2 y3  0  0 1 0]
-    # Row for 3-component: [ 0  0  0  0  0 y3  0 0 1]
-    #M = np.zeros((3 * n_samples, 9), dtype=np.float64)
     # Design matrix blocks 12 parameters
-    # Row for 1-component: [y1 y2 y3  0  0  0  0  0  0  1 0 0]
-    # Row for 2-component: [ 0  0  0 y1 y2 y3  0  0  0  0 1 0]
-    # Row for 3-component: [ 0  0  0  0  0  0 y1 y2 y3  0 0 1]
+    # Row for x-component: [y1 y2 y3  0  0  0  0  0  0  1 0 0]
+    # Row for y-component: [ 0  0  0 y1 y2 y3  0  0  0  0 1 0]
+    # Row for z-component: [ 0  0  0  0  0  0 y1 y2 y3  0 0 1]
     M = np.zeros((3 * n_samples, 12), dtype=np.float64)
 
-    # 1 rows
-    #M[0::3, 0:3] = iter_mag_data
-    #M[0::3, 6]   = 1.0
-    # 2 rows
-    #M[1::3, 3] = my
-    #M[1::3, 4] = mz
-    #M[1::3, 7]  = 1.0
-    # 3 rows
-    #M[2::3, 5] = mz
-    #M[2::3, 8]  = 1.0
-
-    # 1 rows
+    # x rows
     M[0::3, 0:3] = iter_mag_data
     M[0::3, 9]   = 1.0
-    # 2 rows
+    # y rows
     M[1::3, 3:6] = iter_mag_data
     M[1::3, 10]  = 1.0
-    # 3 rows
+    # z rows
     M[2::3, 6:9] = iter_mag_data
     M[2::3, 11]  = 1.0
 
-    u = u.reshape(-1)  # stack 1,2,3 for all i
     return M, u
 
 def calibrate_mag_from_data(
@@ -158,7 +123,7 @@ def calibrate_mag_from_data(
         raw_mag_data: Raw magnetometer data array of shape (N, 3)
         fs: Sampling rate in Hz.
         tol: Cost function relative reduction tolerance in each iteration
-        n_iterations: Maximum iterations
+        n_iterations: Maximum number of iterations
 
     Returns:
         Optimal calibration parameters (12,) [A_tilde (row-wise 9), B_tilde (3)]
@@ -167,13 +132,10 @@ def calibrate_mag_from_data(
     start = int(t_init * fs)
 
     # Sphere-fit to get coarse bias c
-    c, R = fit_sphere_ls(raw_mag_data[start:])
-    print(f"Coarse bias c: {c}")
-    print(f"Radius: {R}")
+    c, _ = fit_sphere_ls(raw_mag_data[start:])
 
-    # De-bias data
-    raw_mag_data_unbiased = raw_mag_data[start:] - c
-    #raw_mag_data_unbiased = raw_mag_data.copy()
+    # De-bias data, first calibration iteration also
+    cal_mag_data = raw_mag_data[start:].copy() - c
 
     # Pre-allocate results storage
     thetas: list[np.ndarray] = []
@@ -181,11 +143,10 @@ def calibrate_mag_from_data(
 
     print(">>> Magnetometer calibration in progress...")
 
-    cal_mag_data = raw_mag_data_unbiased.copy()
     for k in range(n_max_iteration):
-        M, y = design_matrix_and_target(cal_mag_data)
-        # Solve M θ ≈ y
-        theta, cost, _, _ = np.linalg.lstsq(M, y, rcond=None)
+        M, u = design_matrix_and_target(cal_mag_data)
+        # Solve M θ ≈ u
+        theta, cost, _, _ = np.linalg.lstsq(M, u, rcond=None)
 
         # Check termination (needs at least 2 iters)
         if k > 0:
@@ -201,10 +162,10 @@ def calibrate_mag_from_data(
             
     # Find matrices by recursion
     n_iter = len(thetas)
-    A_tilde_k = compute_general_matrix(thetas[0][:9])
+    A_tilde_k = thetas[0][:9].reshape(3,3)
     B_tilde_k = thetas[0][9:]
     for i in range(1, n_iter):
-         A_k = compute_general_matrix(thetas[i][:9])
+         A_k = thetas[i][:9].reshape(3,3)
          B_k = thetas[i][9:]
          A_tilde_k =  A_k @ A_tilde_k 
          B_tilde_k = A_k @ B_tilde_k + B_k 
@@ -213,13 +174,11 @@ def calibrate_mag_from_data(
     B_tilde_k = A_tilde_k @ (-c) + B_tilde_k
 
     # Get parameters from matrices
-    #params_mag = np.array([A_tilde_k[0,0],A_tilde_k[0,1],A_tilde_k[0,2],A_tilde_k[1,1],A_tilde_k[1,2],A_tilde_k[2,2],B_tilde_k[0], B_tilde_k[1], B_tilde_k[2]])
     params_mag = np.hstack((A_tilde_k.ravel(), B_tilde_k))
-    #params_mag = thetas[0]
 
     print(">>> Magnetometer calibration finished")
     print(f">>> Number of interations: {n_iter}")
-    return params_mag,c
+    return params_mag
 
 def show_data(
     mag_data: np.ndarray, 
@@ -264,18 +223,21 @@ def plot_data_sphere(
     u_sphere: bool=True
 ) -> None:
     """
-    Plots a magnetometer 3D data and unitary sphere if specified.
+    Plots a magnetometer 3D data and unit sphere if specified.
     It can be used to visualize calibration results.
 
     Args:
         mag_data: Data array of shape (N, 3) where N is number of samples.
         title: Figure title
-        u_sphere: If true plots unitary sphere
+        u_sphere: If true plots unit sphere
+
+    Returns:
+        None
     """
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(111, projection='3d')
     ax.set_box_aspect([1, 1, 1])  # Equal aspect ratio
-    ax.scatter(0,0,0)
+    ax.scatter(0,0,0, color='black')
 
     if u_sphere:
         # Create unit sphere mesh
@@ -300,41 +262,47 @@ def plot_data_sphere(
     plt.show()
 
 #===========================================================
-#----------Functions for sinthetic data generation----------
+#----------Functions for synthetic data generation----------
 #===========================================================
 
-def sample_unit_sphere(n_samples: int, method: str = "rand"):
+def sample_unit_sphere(
+    n_samples: int
+) -> np.ndarray:
     """
     Sample points uniformly on the unit sphere.
 
-    method:
-      - "rand": random directions via normal sampling (fast, uniform on sphere)
-      - "grid": deterministic sampling (not uniform) - uses random for now
-    Returns: (N,3) array
+    Args:
+        n_samples: Number of desired samples.
+
+    Returns: 
+        Data array of shape (n_samples,3)  
     """
-    if method == "rand":
-        x = np.random.normal(size=(n_samples, 3))
-        x /= np.linalg.norm(x, axis=1, keepdims=True)
-        return x
-    else:
-        # fallback
-        x = np.random.normal(size=(n_samples, 3))
-        x /= np.linalg.norm(x, axis=1, keepdims=True)
-        return x
+
+    x = np.random.normal(size=(n_samples, 3))
+    x /= np.linalg.norm(x, axis=1, keepdims=True)
+    return x
+  
     
-def random_soft_iron(scale_min=0.7, scale_max=1.5, rotation_magnitude=0.5, seed=None):
+def random_soft_iron(
+    scale_min: float=0.7, 
+    scale_max: float=1.5, 
+    rotation_magnitude: float=0.5
+) -> np.ndarray:
     """
-    Build a random A_distort matrix with:
-      - diagonal scales in [scale_min, scale_max]
-      - a small random rotation controlled by rotation_magnitude (radians)
-    Returns (3,3) invertible matrix.
+    Build a random A_distort matrix
+
+    Args:
+        scale_min: minumun diagonal scale
+        scale_max: maximun diagonal scale
+        rotation_magnitud: A small random rotation (radians)
+
+    Returns:
+        Inverse of true general matrix A.
     """
-    if seed is not None:
-        np.random.seed(seed)
-    # random diagonal scales
+    # Random diagonal scales
     scales = np.random.uniform(scale_min, scale_max, size=3)
     D = np.diag(scales)
-    # random rotation via axis-angle
+    # Random rotation via axis-angle
     axis = np.random.normal(size=3)
     axis /= np.linalg.norm(axis)
     angle = np.random.uniform(-rotation_magnitude, rotation_magnitude)
@@ -346,32 +314,41 @@ def random_soft_iron(scale_min=0.7, scale_max=1.5, rotation_magnitude=0.5, seed=
     A = R @ D @ R.T
     return A
 
-def generate_raw_data(n_samples: int,
-                      A_distort: np.ndarray,
-                      b_distort: np.ndarray,
-                      noise_std: float = 0.0,
-                      outlier_fraction: float = 0.0,
-                      outlier_scale: float = 5.0,
-                      clip_min: Optional[float] = None,
-                      clip_max: Optional[float] = None,
-                      seed: Optional[int] = None):
+def generate_raw_data(
+    n_samples: int,
+    A_distort: np.ndarray,
+    b_distort: np.ndarray,
+    noise_std: float = 0.0,
+    outlier_fraction: float = 0.0,
+    outlier_scale: float = 1.1,
+    clip_min: Optional[float] = None,
+    clip_max: Optional[float] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Generate measured (raw) magnetometer data from unit field vectors.
+
+    Args:
+        A_distort: Inverse of true general matrix A.
+        b_distort: It relates with real zero bias vector as (A_distort)^(-1) @ b_distort approx. -b_cal
+        noise_std: White gaussian noise standard deviation 
+        outlier_fraction: Fraction of large random points in data set
+        outlier_scale: Scale of the fraction odf large random points in data set
+        clip_min: Minimun clipping value
+        clip_max: Maximun clipping value
+
     Returns:
-      m_true: (N,3) unit sphere
-      m_raw : (N,3) measured (distorted)
+        m_true: Real unit sphere data array of shape (N,3).
+        m_raw : Synthetic measured (distorted) data array of shape (N,3).
     """
-    if seed is not None:
-        np.random.seed(seed)
     m_true = sample_unit_sphere(n_samples)
     m_raw = (A_distort @ m_true.T).T + b_distort
 
     # Add gaussian noise
-    if noise_std and noise_std > 0:
+    if noise_std > 0:
         m_raw += np.random.normal(scale=noise_std, size=m_raw.shape)
 
     # Outliers (large random points)
-    if outlier_fraction and outlier_fraction > 0:
+    if outlier_fraction > 0:
         n_out = int(np.round(outlier_fraction * n_samples))
         idx = np.random.choice(n_samples, size=n_out, replace=False)
         # replace by an amplified direction or random large vector
@@ -387,12 +364,31 @@ def generate_raw_data(n_samples: int,
 
     return m_true, m_raw
 
-def evaluate_calibration(A_cal: np.ndarray, b_cal: np.ndarray, A_distort: np.ndarray, b_distort: np.ndarray, m_true: np.ndarray, m_raw: np.ndarray):
+def evaluate_calibration(
+    A_cal: np.ndarray, 
+    b_cal: np.ndarray, 
+    A_distort: np.ndarray, 
+    b_distort: np.ndarray, 
+    m_true: np.ndarray, 
+    m_raw: np.ndarray
+) -> dict:
     """
     Evaluate calibration quality.
     Computes:
       - Norm error stats of calibrated points vs 1
       - Parameter differences (A_cal * A_distort ≈ I, A_cal @ b_distort + b_cal ≈ 0)
+
+    Args:
+        A_cal: General matrix A obtained by means of calibration.
+        b_cal: Zero vias vector B obtained by means of calibration.
+        A_distort: Inverse of true general matrix A.
+        b_distort: It relates with real zero bias vector as (A_distort)^(-1) @ b_distort approx. -b_cal
+        m_true: Real unit sphere data array of shape (N,3).
+        m_raw : Synthetic measured (distorted) data array of shape (N,3).
+
+    Returns:
+        Calibration quality dictionary.
+
     """
     # Apply calibration
     m_est = (A_cal @ m_raw.T).T + b_cal
@@ -402,16 +398,16 @@ def evaluate_calibration(A_cal: np.ndarray, b_cal: np.ndarray, A_distort: np.nda
     compA = A_cal @ A_distort
     compb = A_cal @ b_distort + b_cal
 
-    print("Calibrated norms: mean {:.6f}, std {:.6f}, min {:.6f}, max {:.6f}".format(norms.mean(), norms.std(), norms.min(), norms.max()))
-    print("Composition A_cal @ A_distort (should be ~I):\n", compA)
-    print("Composition error vs Identity (Frobenius norm):", np.linalg.norm(compA - np.eye(3)))
-    print("Composition for bias (should be near zero):", compb, " norm:", np.linalg.norm(compb))
+    print(">>> Calibrated norms: mean {:.6f}, std {:.6f}, min {:.6f}, max {:.6f}".format(norms.mean(), norms.std(), norms.min(), norms.max()))
+    print(">>> Composition A_cal @ A_distort (should be ~I):\n", compA)
+    print(">>> Composition error vs Identity (Frobenius norm):", np.linalg.norm(compA - np.eye(3)))
+    print(">>> Composition for bias (should be near zero):", compb, " norm:", np.linalg.norm(compb))
 
     # If m_true known, show the direct RMSE vs ground-truth directions/coords
     rmse_coords = np.sqrt(np.mean((m_est - m_true)**2))
     rmse_norms = np.sqrt(np.mean((np.linalg.norm(m_est,axis=1) - 1.0)**2))
-    print("RMSE (coords vs true):", rmse_coords)
-    print("RMSE (norm vs 1):", rmse_norms)
+    print(">>> RMSE (coords vs true):", rmse_coords)
+    print(">>> RMSE (norm vs 1):", rmse_norms)
 
     return {"m_est": m_est, "compA": compA, "compb": compb, "rmse_coords": rmse_coords, "rmse_norms": rmse_norms}
     
