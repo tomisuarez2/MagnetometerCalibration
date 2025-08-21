@@ -229,7 +229,7 @@ Dorveaux, E., Vissière, D., Martin, A.-P., & Petit, N. (2009). Iterative calibr
 Contributions are welcome!
 Fork, improve, and open a pull request 🚀
 
-(Also check out our related project: ImuCalibration[ImuCalibration](https://github.com/tomisuarez2/ImuCalibration))
+(Also check out our related project: [ImuCalibration](https://github.com/tomisuarez2/ImuCalibration))
 
 
 --
