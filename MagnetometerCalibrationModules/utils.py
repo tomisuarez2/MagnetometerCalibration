@@ -12,6 +12,7 @@ import time
 from typing import Union, Tuple
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 def log_data_from_magnetometer(
     port: str,
@@ -180,3 +181,73 @@ def extract_mag_data(
         raise ValueError(f"Invalid file format in {file_name}") from e
     except FileNotFoundError as e:
         raise FileNotFoundError(f"File not found: {file_name}") from e
+    
+def show_loglog_data(
+    x_data: np.ndarray,
+    y_data: np.ndarray, 
+    legend: str,
+    xlabel: str,
+    ylabel: str,
+    title: str,
+) -> None:
+    """
+    Show data plot in double logaritmic axes.
+
+    Args:
+        x_data: X data plot.
+        y_data: Y data plot.
+        legend: Data legend.
+        xlabel: X axis label.
+        ylabel: Y axis label.
+        title: Figure title.
+
+    Returns:
+        None
+    """
+
+    # Visualization
+    plt.loglog(x_data, y_data)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend(legend)
+    plt.title(title)
+    plt.grid(True, which="both")
+    plt.show()
+
+def show_time_data(
+    data: np.ndarray, 
+    fs: Union[int,float], 
+    legend: list,
+    xlabel: str="Time [s]",
+    ylabel: str="Sensor measurement data [u]",
+    title: str="Sensor data"
+) -> None:
+    """
+    Show sensor data as a function of time.
+
+    Args:
+        data: Data array of shape (N,) where N is number of samples.
+        fs: Sampling rate in Hz.
+        legend: Plot legend.
+        xlabel: X axis label.
+        ylabel: Y axis label.
+        title: Figure title.
+
+    Returns:
+        None
+    """
+    n_samples = data.shape[0]
+
+    # Time vector
+    time_vector = np.arange(0, n_samples, 1) / fs
+
+    # Completed barometer data over time
+    _, ax1 = plt.subplots(figsize=(12, 7))
+    ax1.plot(time_vector, data)
+    ax1.grid(True)
+    ax1.set_xlabel(xlabel)
+    ax1.set_ylabel(ylabel)
+    ax1.set_title(title)
+    ax1.legend(legend)
+
+    plt.show()
