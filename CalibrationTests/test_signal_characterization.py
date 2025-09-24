@@ -25,7 +25,7 @@ params_mag = np.loadtxt("optimization result data/paramters_mag.csv", delimiter=
 cal_mag_data = mag.apply_mag_calibration(params_mag, raw_mag_data)
 
 # Recorded data
-show_time_data(cal_mag_data, sampling_freq, ["mx", "my", "mz"], ylabel="Magnetometer data [-]", title="Magnetometer data")
+mag.show_data(cal_mag_data, sampling_freq, ylabel="Magnetometer data [-]", title="Magnetometer data")
 
 time_vector = np.arange(0, n_samples, 1) / sampling_freq
 

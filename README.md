@@ -509,16 +509,17 @@ These relationships allow estimation of $R$ and $q$ directly from logged data.
 * Estimated noise parameters:
 
  ```bash
->>> Y axis magnetometer white measurement–noise variance [(-)]:
->>> Y axis accelerometer bias random–walk intensity [(-)/s]: 
+ >>> Z axis magnetometer white measurement–noise variance [-]: 0.007715742865748797
+ >>> Z axis magnetometer bias random–walk intensity [(-)/s]: nan 
 
  ```
 * Visualization of white noise (−½ slope) and random walk (+½ slope) regions
 
-![Allan Deviation Plot](characterization%20result%20images/allan_dev_plot_my.png)
+![Allan Deviation Plot](characterization%20result%20images/allan_dev_plot_mz.png)
 
-![Real vs Simulated data](characterization%20result%20images/real_vs_sim_my.png)
+![Real vs Simulated data](characterization%20result%20images/real_vs_sim_mz.png)
 
+As can be seen in the above pictures, all the sensor noise in due to white gaussian measurement noise.
 ---
 
 ## 🤝 Contributing

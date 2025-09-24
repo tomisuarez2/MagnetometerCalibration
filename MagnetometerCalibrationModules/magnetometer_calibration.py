@@ -135,7 +135,9 @@ def calibrate_mag_from_data(
     start = int(t_init * fs)
 
     # Sphere-fit to get coarse bias c
-    c, _ = fit_sphere_ls(raw_mag_data[start:])
+    #c, _ = fit_sphere_ls(raw_mag_data[start:])
+    c = np.mean(raw_mag_data[start:], axis=0)
+    print(c)
 
     # De-bias data, first calibration iteration also
     cal_mag_data = raw_mag_data[start:].copy() - c

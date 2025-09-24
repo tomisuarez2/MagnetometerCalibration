@@ -9,6 +9,6 @@ For this example we use an arduino UNO connected with a GY-273 magnetometer modu
 
 from MagnetometerCalibrationModules.utils import log_data_from_magnetometer
 
-file_name = log_data_from_magnetometer('COM7', 38400, t_init=60, t_log=400) # calibration data log
+file_name = log_data_from_magnetometer('COM7', 38400, t_init=30, t_log=60*10) # calibration data log
 print(f"\nData has been saved in the following file: {file_name}")
 

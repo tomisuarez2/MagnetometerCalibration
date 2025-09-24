@@ -18,7 +18,7 @@ synthetic = False
 
 if not synthetic:
     # Read data
-    file_name = "calibration data/filtered_raw_data.csv" 
+    file_name = "calibration data/noisy_raw_data.csv" 
     params, raw_mag_data = extract_mag_data(file_name)
     sampling_freq, t_init = params
 else:
@@ -35,7 +35,9 @@ else:
 
 n_samples = raw_mag_data.shape[0]
 print(f"Number of samples in the file: {n_samples}")
-
+for i in range(len(raw_mag_data[:,0])):
+    if raw_mag_data[i,0] < 2000:
+        print(i)
 # Calibrate magnetometer
 theta_opt_mag = mag.calibrate_mag_from_data(t_init, raw_mag_data, sampling_freq, n_max_iteration=5000, tol=0.0001)
 
