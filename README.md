@@ -444,25 +444,14 @@ $$
 = Q\cdot \frac{2m^2+1}{6m}
 $$
 
-Replace $Q=qT_s$ and $m=\tau/T_s$ to express in $\tau$ and $T_s$. Two algebraically equivalent forms are useful:
-
-1. Expand to isolate the dominant and correction terms:
+Replace $Q=qT_s$ and $m=\tau/T_s$ to express in $\tau$ and $T_s$ and then expand to isolate the dominant and correction terms:  
 
 $$
 \sigma^2(\tau)
 = \frac{q}{3}\tau + \frac{qT_s^{2}}{6\tau}
 $$
 
-(derivation: substitute $Q=qT_s$ and simplify).
-
-2. Or as a single fraction:
-
-$$
-\sigma^2(\tau)
-= \frac{6\tau\sigma^2(\tau)}{2\tau^2 + T_s^2}\quad\text{(rearranged when solving for }q\text{)}
-$$
-
-The first form is very instructive: it is the exact discrete formula and clearly shows the **leading term** $(q/3)\tau$ and the **finite-sample correction** $\dfrac{qT_s^2}{6\tau}$.
+This form is very instructive: it is the exact discrete formula and clearly shows the **leading term** $(q/3)\tau$ and the **finite-sample correction** $\dfrac{qT_s^2}{6\tau}$.
 
 ### Asymptotic (continuous / large-m) approximation
 
